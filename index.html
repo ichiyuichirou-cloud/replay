@@ -139,6 +139,17 @@ const RM=[{"L": "A", "p": 0, "x": 0.4936, "y": 0.3367, "w": 0.0282, "h": 0.0397,
 RM.forEach(r=>{const d=document.createElement('div');d.className='rm';d.title=r.L+'から再生';const px=r.w*0.35,py=r.h*0.35;
  d.style.cssText='left:'+(r.x-px)*100+'%;top:'+(r.y-py)*100+'%;width:'+(r.w+2*px)*100+'%;height:'+(r.h+2*py)*100+'%';
  d.onclick=e=>{e.stopPropagation();const k=AK.find(z=>z.m0==r.m);if(!k)return;au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()};pgs[r.p].appendChild(d)});
+const MK=AK.map(k=>({p:k.p,m:k.m,t:k.t,x:k.x,x2:k.x2,y0:k.sb[0]?k.sb[0][0]:k.sb[3][0],y1:k.sb[3][1]}));
+function pick(p,px,py){let b=null,bs=9;for(const k of MK){if(k.p!=p)continue;const dy=py<k.y0?k.y0-py:py>k.y1?py-k.y1:0,dx=px<k.x?k.x-px:px>k.x2?px-k.x2:0,s=dy*2+dx;if(s<bs){bs=s;b=k}}return bs<0.08?b:null}
+const hl=document.createElement('div');hl.style.cssText='position:absolute;background:rgba(255,152,0,.22);outline:2px solid rgba(255,152,0,.8);border-radius:4px;pointer-events:none;display:none;z-index:3';
+function showHl(k,host){host.appendChild(hl);hl.style.display='block';hl.style.left=k.x*100+'%';hl.style.width=(k.x2-k.x)*100+'%';hl.style.top=k.y0*100+'%';hl.style.height=(k.y1-k.y0)*100+'%'}
+pgs.forEach((d,i)=>{d.style.cursor='pointer';
+ const at=e=>{const r=d.getBoundingClientRect();return pick(i,(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height)};
+ d.addEventListener('mousemove',e=>{const k=at(e);if(k)showHl(k,d);else hl.style.display='none'});
+ d.addEventListener('mouseleave',()=>{hl.style.display='none'});
+ d.addEventListener('click',e=>{const k=at(e);if(!k)return;showHl(k,d);hl.style.background='rgba(255,152,0,.5)';
+  setTimeout(()=>{hl.style.background='rgba(255,152,0,.22)';if(!matchMedia('(hover:hover)').matches)hl.style.display='none'},500);
+  au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()})});
 const appEl=document.getElementById('app'),dv=$('dv');let drag=false;
 try{const v=+localStorage.getItem('rp_lw');if(v>=25&&v<=75)appEl.style.setProperty('--lw',v)}catch(e){}
 dv.addEventListener('pointerdown',e=>{drag=true;dv.classList.add('on');dv.setPointerCapture(e.pointerId);e.preventDefault()});
