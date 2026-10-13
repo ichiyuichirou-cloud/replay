@@ -44,17 +44,21 @@ body.rec .pg{cursor:crosshair;outline:2px dashed #ff5a1f}
 #dv:hover,#dv.on{background:linear-gradient(90deg,transparent 3px,#ff9800 3px,#ff9800 7px,transparent 7px)}
 .rm{position:absolute;cursor:pointer;border-radius:5px;z-index:4}
 .rm:hover{background:rgba(255,152,0,.28);outline:2px solid #ff9800}
+#ctx{position:fixed;z-index:60;background:var(--bar);border:1px solid #8886;border-radius:8px;box-shadow:0 4px 14px #0006;padding:4px;display:none;min-width:150px}
+#ctx button{display:block;width:100%;text-align:left;margin:1px 0;padding:8px 10px}
+.ln{white-space:pre-wrap}
+.edf .ln{opacity:1!important}
+.edf textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;background:var(--bg);color:var(--fg);border:1px solid #8886;border-radius:5px;padding:4px;min-height:2.8em;display:block;margin-top:2px}
 small{opacity:.8}
 </style></head><body>
 <div id="app">
 <div id="left">
-<div id="strip"><button id="pp">▶</button><span id="tm">0:00</span><span id="now"></span><span style="flex:1"></span><button id="gear">⚙ 操作</button></div>
+<div id="strip"><button id="pp">▶</button><span id="tm">0:00</span><span style="flex:1"></span><button id="gear">⚙ 操作</button></div>
 <div id="bar" hidden>
 <div id="tabs"></div>
 <audio id="au" controls></audio>
 <div class="row">拡大<input id="zm" type="range" min="100" max="250" value="100" style="width:90px" title="100=左画面の幅いっぱい">
-<button id="mic">🎤 音程チェック</button><button id="auto" class="on">📜 自動スクロール</button></div>
-<canvas id="pc" width="900" height="70"></canvas>
+<button id="auto" class="on">📜 自動スクロール</button></div>
 </div>
 <div id="sc"><div id="pages"></div></div>
 </div>
@@ -134,6 +138,45 @@ cards.forEach((d,k)=>{const a=PT[k][0],b=k+1<PT.length?PT[k+1][0]:84,runs=melRun
  el.innerHTML='<i>主旋律</i>'+runs.map(r=>(runs.length>1?(r.s==r.e?r.s:r.s+'〜'+r.e)+'小節: ':'')+[...r.c].map(ch=>'<span style="color:'+MC[ch][1]+'">'+MC[ch][0]+'</span>').join('+')).join(' ／ ');
  d.insertBefore(el,d.children[1])});
 setMine(mine);
+
+/* ---- editable points ---- */
+const PT0=PT.map(p=>p.slice());
+[PT,PT0].forEach(L=>L.forEach(p=>{for(let j=2;j<6;j++)p[j]=p[j].replace(/&lt;/g,'<')}));
+let OV={};try{OV=JSON.parse(localStorage.getItem('rp_pt')||'{}')}catch(e){}
+Object.keys(OV).forEach(k=>{const p=PT[+k];if(p&&Array.isArray(OV[k]))for(let j=0;j<4;j++)if(typeof OV[k][j]=='string')p[j+2]=OV[k][j]});
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const saveOV=()=>{try{localStorage.setItem('rp_pt',JSON.stringify(OV))}catch(e){}};
+function fillCard(k){
+  const p=PT[k],d=cards[k],a=p[0],b=k+1<PT.length?PT[k+1][0]:84,runs=melRuns(a,b);
+  let h='<b>小節'+p[0]+'〜'+(p[1]?'　【'+p[1]+'】':'')+'</b>';
+  h+='<div class="ln" data-k="a" style="--c:#ff9800;font-weight:700"><i>主旋律</i>'+runs.map(r=>(runs.length>1?(r.s==r.e?r.s:r.s+'〜'+r.e)+'小節: ':'')+[...r.c].map(ch=>'<span style="color:'+MC[ch][1]+'">'+MC[ch][0]+'</span>').join('+')).join(' ／ ')+'</div>';
+  if(p[2])h+='<div class="ln" data-k="a" style="--c:#888"><i>全員</i>'+esc(p[2])+'</div>';
+  [3,4,5].forEach((j,q)=>{if(p[j])h+='<div class="ln" data-k="'+q+'" style="--c:'+PC[q+1][1]+'"><i>'+PC[q+1][0].replace('(テノール)','')+'</i>'+esc(p[j])+'</div>'});
+  d.innerHTML=h;
+}
+PT.forEach((_,k)=>fillCard(k));setMine(mine);
+let editing=false;
+function endEdit(k){editing=false;window.__editing=false;fillCard(k);setMine(mine)}
+function openEdit(k){
+  editing=true;window.__editing=true;const p=PT[k],d=cards[k];
+  const labs=[['全員','#888',2],['ソプラノ',PC[1][1],3],['アルト',PC[2][1],4],['男声',PC[3][1],5]];
+  d.innerHTML='<b>小節'+p[0]+'〜 を編集</b><div class="edf">'+labs.map(([n,c,j])=>'<div class="ln" data-k="a" style="--c:'+c+'"><i>'+n+'</i><textarea data-j="'+j+'">'+esc(p[j])+'</textarea></div>').join('')+'<div style="margin-top:6px"><button class="on" data-a="save">保存</button><button data-a="cancel">キャンセル</button></div></div>';
+  const tas=d.querySelectorAll('textarea');
+  d.querySelector('[data-a=save]').onclick=()=>{tas.forEach(x=>{p[+x.dataset.j]=x.value.trim()});OV[k]=p.slice(2,6);saveOV();endEdit(k)};
+  d.querySelector('[data-a=cancel]').onclick=()=>endEdit(k);
+  tas[0].focus();
+}
+function resetCard(k){PT[k].splice(2,4,...PT0[k].slice(2,6));delete OV[k];saveOV();fillCard(k);setMine(mine)}
+const ctx=document.createElement('div');ctx.id='ctx';document.body.appendChild(ctx);
+function openMenu(k,x,y){ctx.innerHTML='<button data-a="e">✏ 編集</button>'+(OV[k]?'<button data-a="r">↩ 初期の内容に戻す</button>':'');ctx.style.display='block';ctx.style.left=Math.max(4,Math.min(x,innerWidth-190))+'px';ctx.style.top=Math.max(4,Math.min(y,innerHeight-100))+'px';ctx.dataset.k=k}
+ctx.onclick=e=>{const a=e.target.dataset.a,k=+ctx.dataset.k;ctx.style.display='none';if(a=='e')openEdit(k);if(a=='r')resetCard(k)};
+document.addEventListener('pointerdown',e=>{if(!ctx.contains(e.target))ctx.style.display='none'});
+addEventListener('keydown',e=>{if(e.key=='Escape')ctx.style.display='none'});
+const cardOf=el=>{const c=el.closest('.pt');return c?cards.indexOf(c):-1};
+$('pts').addEventListener('contextmenu',e=>{const k=cardOf(e.target);if(k<0||e.target.closest('textarea'))return;e.preventDefault();openMenu(k,e.clientX,e.clientY)});
+$('pts').addEventListener('dblclick',e=>{const k=cardOf(e.target);if(k<0||e.target.closest('textarea,button'))return;openMenu(k,e.clientX,e.clientY)});
+let lt=0,lk=-1;$('pts').addEventListener('pointerup',e=>{if(e.pointerType!='touch')return;const k=cardOf(e.target);if(k<0||e.target.closest('textarea,button'))return;const n=performance.now();if(k==lk&&n-lt<350){openMenu(k,e.clientX,e.clientY);lt=0}else{lt=n;lk=k}});
+$('pts').style.touchAction='manipulation';
 const lg=document.createElement('div');lg.className='lgd';lg.innerHTML='楽譜の色＝主旋律のパート: '+Object.values(MC).map(c=>'<i style="background:'+c[1]+'">'+c[0]+'</i>').join('')+'<small>(歌詞の割り当てから判断した目安)</small>';$('right').insertBefore(lg,$('pts'));
 const RM=[{"L": "A", "p": 0, "x": 0.4936, "y": 0.3367, "w": 0.0282, "h": 0.0397, "m": 6}, {"L": "B", "p": 1, "x": 0.6178, "y": 0.3618, "w": 0.0287, "h": 0.0187, "m": 14}, {"L": "C", "p": 2, "x": 0.096, "y": 0.0333, "w": 0.0278, "h": 0.0184, "m": 18}, {"L": "D", "p": 3, "x": 0.0561, "y": 0.0252, "w": 0.0281, "h": 0.0189, "m": 27}, {"L": "E", "p": 3, "x": 0.3548, "y": 0.6663, "w": 0.0231, "h": 0.0161, "m": 35}, {"L": "F", "p": 4, "x": 0.0972, "y": 0.3496, "w": 0.0275, "h": 0.0202, "m": 40}, {"L": "G", "p": 5, "x": 0.6623, "y": 0.0177, "w": 0.0288, "h": 0.0189, "m": 48}, {"L": "H", "p": 5, "x": 0.0567, "y": 0.6771, "w": 0.0244, "h": 0.0165, "m": 53}, {"L": "I", "p": 6, "x": 0.1045, "y": 0.6615, "w": 0.0293, "h": 0.0194, "m": 62}, {"L": "J", "p": 7, "x": 0.0525, "y": 0.0296, "w": 0.0275, "h": 0.0189, "m": 66}, {"L": "K", "p": 8, "x": 0.6341, "y": 0.0263, "w": 0.0287, "h": 0.0197, "m": 77}];
 RM.forEach(r=>{const d=document.createElement('div');d.className='rm';d.title=r.L+'から再生';const px=r.w*0.35,py=r.h*0.35;
@@ -161,19 +204,20 @@ setInterval(()=>{const ct=au.currentTime|0;$('tm').textContent=(ct/60|0)+':'+Str
 /* ---- follow music: system-level auto scroll ---- */
 const SY=[];(()=>{const g={};AK.forEach(k=>{const id=k.p+':'+k.y;if(!g[id])g[id]={p:k.p,y:k.y,h:k.h,t:k.t,m:k.m,x0:k.x,x1:k.x2};const s=g[id];s.t=Math.min(s.t,k.t);s.m=Math.min(s.m,k.m);s.x0=Math.min(s.x0,k.x);s.x1=Math.max(s.x1,k.x2)});Object.values(g).sort((a,b)=>a.t-b.t).forEach(s=>SY.push(s))})();
 let curS=-2,manualUntil=0,autoOn=true,lastCard=-1;
-const cs=document.createElement('div');cs.style.cssText='position:absolute;border:2px solid #ff9800;border-radius:5px;pointer-events:none;box-shadow:0 0 0 1px #fff8;z-index:3';
+const cs=document.createElement('div');cs.style.cssText='position:absolute;left:.4%;width:5px;background:#ff9800;border-radius:3px;pointer-events:none;z-index:3';
 ['wheel','touchmove'].forEach(ev=>$('sc').addEventListener(ev,()=>{manualUntil=performance.now()+4000},{passive:true}));
 $('pts').addEventListener('wheel',()=>{manualUntil=performance.now()+4000},{passive:true});
 $('auto').onclick=()=>{autoOn=!autoOn;$('auto').classList.toggle('on',autoOn);if(autoOn){curS=-2;follow(true)}else cs.remove()};
 const anim={};
 function swipe(el,target,dur,force){
+  if(el.id==='pts'&&window.__editing)return;
   const start=el.scrollTop,delta=target-start;if(Math.abs(delta)<2)return;const t0=performance.now();anim[el.id]=t0;
   (function step(now){if(anim[el.id]!==t0||(!force&&manualUntil>t0))return;const p=Math.min(1,(now-t0)/dur),e=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;el.scrollTop=start+delta*e;if(p<1)requestAnimationFrame(step)})(t0);
 }
 function follow(force){
   if(!autoOn)return;const t=toRef(part,au.currentTime)+0.2;let i=0;for(let k=0;k<SY.length;k++){if(SY[k].t<=t)i=k;else break}
   if(i==curS&&!force)return;curS=i;const s=SY[i],host=pgs[s.p];
-  host.appendChild(cs);cs.style.left=s.x0*100+'%';cs.style.width=(s.x1-s.x0)*100+'%';cs.style.top=(s.y-s.h/2)*100+'%';cs.style.height=s.h*100+'%';
+  host.appendChild(cs);cs.style.top=(s.y-s.h/2)*100+'%';cs.style.height=s.h*100+'%';
   let pi=0;PT.forEach((p,k)=>{if(p[0]<=Math.floor(s.m))pi=k});
   if(pi!=lastCard||force){lastCard=pi;cards.forEach((c,k)=>c.classList.toggle('on',k==pi))}
   if(performance.now()<manualUntil&&!force)return;
@@ -183,40 +227,5 @@ function follow(force){
 }
 setInterval(()=>{if(!au.paused)follow(false)},250);
 au.addEventListener('seeked',()=>follow(true));au.addEventListener('play',()=>follow(true));
-/* ---- pitch check ---- */
-const NM=['ド','ド♯','レ','レ♯','ミ','ファ','ファ♯','ソ','ソ♯','ラ','ラ♯','シ'];
-let mctx=null,an=null,ms=null,buf=null,trace=[],micOn=false;
-function detect(){
-  an.getFloatTimeDomainData(buf);let r=0;for(const v of buf)r+=v*v;if(Math.sqrt(r/buf.length)<.012)return null;
-  const sr=mctx.sampleRate,mn=Math.floor(sr/1000),mx=Math.floor(sr/80),n=buf.length-mx,c=[];let c0=0;
-  for(let i=0;i<n;i++)c0+=buf[i]*buf[i];
-  for(let l=mn;l<=mx;l++){let s=0;for(let i=0;i<n;i++)s+=buf[i]*buf[i+l];c[l]=s}
-  let best=-1,bv=0;for(let l=mn+1;l<mx;l++){if(c[l]>c[l-1]&&c[l]>=c[l+1]&&c[l]>bv){bv=c[l];best=l;if(c[l]>.9*c0)break}}
-  if(best<0||bv<.5*c0)return null;
-  const a=c[best-1],b=c[best],d=c[best+1],p=(a-d)/(2*(a-2*b+d))||0;return sr/(best+p);
-}
-function drawP(){
-  const cv=$('pc'),g=cv.getContext('2d'),W=cv.width,H=cv.height,now=performance.now();
-  g.clearRect(0,0,W,H);const v=trace.filter(p=>now-p.t<6000);if(!v.length)return;
-  const mid=v[v.length-1].m,lo=mid-7,hi=mid+7,y=m=>H-(m-lo)/(hi-lo)*H;
-  g.font='11px sans-serif';
-  for(let m=Math.ceil(lo);m<=hi;m++){g.fillStyle='rgba(128,128,128,.25)';g.fillRect(0,y(m),W,1);g.fillStyle='#888';g.fillText(NM[((m%12)+12)%12],2,y(m)-2)}
-  for(const p of v){g.fillStyle=Math.abs(p.c)<=25?'#1aa05a':Math.abs(p.c)<=50?'#e0a030':'#e04a3b';g.beginPath();g.arc(W-(now-p.t)/6000*W,y(p.m),3.5,0,7);g.fill()}
-}
-function micLoop(){
-  if(!micOn)return;requestAnimationFrame(micLoop);const f=detect();
-  if(f){const m=69+12*Math.log2(f/440),r=Math.round(m),c=Math.round((m-r)*100);
-    trace.push({t:performance.now(),m,c});const ok=Math.abs(c)<=25,warn=Math.abs(c)<=50;
-    $('now').textContent=NM[((r%12)+12)%12]+' '+(c>0?'+':'')+c+'c '+(ok?'⭕':warn?'△':(c>0?'高い':'低い'));
-    $('now').style.color=ok?'#1aa05a':warn?'#e0a030':'#e04a3b';
-  }else $('now').textContent='';
-  drawP();
-}
-$('mic').onclick=async()=>{
-  if(micOn){micOn=false;ms.getTracks().forEach(t=>t.stop());mctx.close();$('pc').style.display='none';$('mic').classList.remove('on');$('now').textContent='';return}
-  try{ms=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){$('now').textContent='マイクが使えません';return}
-  mctx=new (window.AudioContext||webkitAudioContext)();an=mctx.createAnalyser();an.fftSize=2048;buf=new Float32Array(2048);
-  mctx.createMediaStreamSource(ms).connect(an);trace=[];micOn=true;$('pc').style.display='block';$('mic').classList.add('on');micLoop();
-};
 part=0;[...$('tabs').children][0].classList.add('on');au.src=url(0);
 </script></body></html>
