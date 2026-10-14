@@ -110,7 +110,7 @@ PARTS.forEach((p,i)=>{const b=document.createElement('button');b.textContent=p;b
 function setPart(i){
   const r=toRef(part,au.currentTime),pl=!au.paused;
   [...$('tabs').children].forEach((b,k)=>b.classList.toggle('on',k==i));
-  au.pause();part=i;au.src=url(i);au.onloadedmetadata=()=>{au.currentTime=fromRef(i,r);if(pl)au.play()};
+  au.pause();part=i;applyRate();au.src=url(i);au.onloadedmetadata=()=>{au.currentTime=fromRef(i,r);if(pl)au.play()};
 }
 function layout(){const aw=$('sc').clientWidth-20;pgs.forEach(d=>{d.style.width=aw+'px'})}
 addEventListener('resize',layout);setInterval(layout,800);
@@ -192,12 +192,13 @@ pgs.forEach((d,i)=>{d.style.cursor='pointer';
  d.addEventListener('click',e=>{const k=at(e);if(!k)return;showHl(k,d);hl.style.background='rgba(255,152,0,.5)';
   setTimeout(()=>{hl.style.background='rgba(255,152,0,.22)';if(!matchMedia('(hover:hover)').matches)hl.style.display='none'},500);
   au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()})});
-let rate=1;
-const setRate=v=>{v=Math.round(Math.max(0.5,Math.min(1.5,v))*80)/80;rate=v;au.defaultPlaybackRate=v;au.playbackRate=v;['preservesPitch','webkitPreservesPitch','mozPreservesPitch'].forEach(p=>{try{au[p]=true}catch(e){}});$('rtv').textContent=Math.round(v*80)+' BPM';try{localStorage.setItem('rp_rate',v)}catch(e){}};
-function hold(btn,d){let to,iv;const step=()=>setRate((Math.round(rate*80)+d)/80),stop=()=>{clearTimeout(to);clearInterval(iv)};btn.addEventListener('pointerdown',e=>{e.preventDefault();step();to=setTimeout(()=>{iv=setInterval(step,70)},400)});['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop))}
-hold($('rtm'),-1);hold($('rtp'),1);$('rt0').onclick=()=>setRate(1);
+const BASE=[83.0,84.5,84.9,85.0,88.2];let bpm=80;
+function applyRate(){const r=bpm/BASE[part];au.defaultPlaybackRate=r;au.playbackRate=r;['preservesPitch','webkitPreservesPitch','mozPreservesPitch'].forEach(p=>{try{au[p]=true}catch(e){}});$('rtv').textContent=bpm+' BPM';try{localStorage.setItem('rp_bpm',bpm)}catch(e){}}
+const setBpm=b=>{bpm=Math.max(40,Math.min(120,Math.round(b)));applyRate()};
+function hold(btn,d){let to,iv;const step=()=>setBpm(bpm+d),stop=()=>{clearTimeout(to);clearInterval(iv)};btn.addEventListener('pointerdown',e=>{e.preventDefault();step();to=setTimeout(()=>{iv=setInterval(step,70)},400)});['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop))}
+hold($('rtm'),-1);hold($('rtp'),1);$('rt0').onclick=()=>setBpm(80);
 au.addEventListener('loadedmetadata',()=>{au.playbackRate=au.defaultPlaybackRate});au.addEventListener('play',()=>{au.playbackRate=au.defaultPlaybackRate});
-{let r0=1;try{r0=+localStorage.getItem('rp_rate')||1}catch(e){}setRate(r0)}
+{let b0=80;try{b0=+localStorage.getItem('rp_bpm')||80}catch(e){}setBpm(b0)}
 const appEl=document.getElementById('app'),dv=$('dv');let drag=false;
 try{const v=+localStorage.getItem('rp_lw');if(v>=25&&v<=75)appEl.style.setProperty('--lw',v)}catch(e){}
 dv.addEventListener('pointerdown',e=>{drag=true;dv.classList.add('on');dv.setPointerCapture(e.pointerId);e.preventDefault()});
