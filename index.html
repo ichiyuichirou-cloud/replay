@@ -57,6 +57,7 @@ small{opacity:.8}
 <div id="bar" hidden>
 <div id="tabs"></div>
 <audio id="au" controls></audio>
+<div class="row"><button id="exp">ポイントの編集内容を書き出す</button><button id="imp">読み込む</button></div>
 <div class="row"><span style="white-space:nowrap">テンポ<button id="rtm" style="padding:6px 14px;font-size:1.1rem">−</button><span id="rtv" style="display:inline-block;min-width:5.2em;text-align:center;font-weight:700">80 BPM</span><button id="rtp" style="padding:6px 14px;font-size:1.1rem">＋</button><button id="rt0">戻す</button></span><button id="auto" class="on">📜 自動スクロール</button></div>
 </div>
 <div id="sc"><div id="pages"></div></div>
@@ -144,7 +145,12 @@ const PT0=PT.map(p=>p.slice());
 let OV={};try{OV=JSON.parse(localStorage.getItem('rp_pt')||'{}')}catch(e){}
 Object.keys(OV).forEach(k=>{const p=PT[+k];if(p&&Array.isArray(OV[k]))for(let j=0;j<4;j++)if(typeof OV[k][j]=='string')p[j+2]=OV[k][j]});
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-const saveOV=()=>{try{localStorage.setItem('rp_pt',JSON.stringify(OV))}catch(e){}};
+const kv=(m,k,v)=>new Promise(res=>{try{const r=indexedDB.open('replay-site',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onerror=()=>res(null);r.onsuccess=()=>{try{const tx=r.result.transaction('kv',m=='set'?'readwrite':'readonly'),st=tx.objectStore('kv'),q=m=='set'?st.put(v,k):st.get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)}catch(e){res(null)}}}catch(e){res(null)}});
+const saveOV=()=>{try{localStorage.setItem('rp_pt',JSON.stringify(OV))}catch(e){}kv('set','pt',JSON.parse(JSON.stringify(OV)))};
+const tst=document.createElement('div');tst.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;z-index:99;font-size:.9rem;display:none;max-width:90vw';document.body.appendChild(tst);
+let tstT;function toast(m){tst.textContent=m;tst.style.display='block';clearTimeout(tstT);tstT=setTimeout(()=>tst.style.display='none',3500)}
+function verifySave(){let ok=false;try{ok=localStorage.getItem('rp_pt')===JSON.stringify(OV)}catch(e){}toast(ok?'保存しました（このブラウザに）':'⚠ このブラウザでは保存できない状態です。「操作」の「書き出し」で控えを取ってください')}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 function fillCard(k){
   const p=PT[k],d=cards[k],a=p[0],b=k+1<PT.length?PT[k+1][0]:84,runs=melRuns(a,b);
   let h='<b>小節'+p[0]+'〜'+(p[1]?'　【'+p[1]+'】':'')+'</b>';
@@ -154,6 +160,10 @@ function fillCard(k){
   d.innerHTML=h;
 }
 PT.forEach((_,k)=>fillCard(k));setMine(mine);
+function applyOV(){Object.keys(OV).forEach(k=>{const p=PT[+k];if(p&&Array.isArray(OV[k]))for(let j=0;j<4;j++)if(typeof OV[k][j]=='string')p[j+2]=OV[k][j]});PT.forEach((_,k)=>fillCard(k));setMine(mine)}
+kv('get','pt').then(o=>{if(!o||typeof o!='object')return;let ch=false;Object.keys(o).forEach(k=>{if(!OV[k]){OV[k]=o[k];ch=true}});if(ch){applyOV();try{localStorage.setItem('rp_pt',JSON.stringify(OV))}catch(e){}}});
+$('exp').onclick=()=>{const s=JSON.stringify(OV);const done=()=>alert('編集内容をコピーしました。メモ帳などに貼り付けて保管してください。');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(s).then(done,()=>prompt('これをコピーして保管してください',s));else prompt('これをコピーして保管してください',s)};
+$('imp').onclick=()=>{const s=prompt('書き出した編集内容を貼り付けてください');if(!s)return;try{const o=JSON.parse(s);if(typeof o!='object')throw 0;PT.forEach((p,k)=>{p.splice(2,4,...PT0[k].slice(2,6))});OV=o;saveOV();applyOV();toast('読み込みました')}catch(e){alert('読み込めませんでした。書き出した内容をそのまま貼り付けてください。')}};
 let editing=false;
 function endEdit(k){editing=false;window.__editing=false;fillCard(k);setMine(mine)}
 function openEdit(k){
@@ -161,7 +171,7 @@ function openEdit(k){
   const labs=[['全員','#888',2],['ソプラノ',PC[1][1],3],['アルト',PC[2][1],4],['男声',PC[3][1],5]];
   d.innerHTML='<b>小節'+p[0]+'〜 を編集</b><div class="edf">'+labs.map(([n,c,j])=>'<div class="ln" data-k="a" style="--c:'+c+'"><i>'+n+'</i><textarea data-j="'+j+'">'+esc(p[j])+'</textarea></div>').join('')+'<div style="margin-top:6px"><button class="on" data-a="save">保存</button><button data-a="cancel">キャンセル</button></div></div>';
   const tas=d.querySelectorAll('textarea');
-  d.querySelector('[data-a=save]').onclick=()=>{tas.forEach(x=>{p[+x.dataset.j]=x.value.trim()});OV[k]=p.slice(2,6);saveOV();endEdit(k)};
+  d.querySelector('[data-a=save]').onclick=()=>{tas.forEach(x=>{p[+x.dataset.j]=x.value.trim()});OV[k]=p.slice(2,6);saveOV();endEdit(k);verifySave()};
   d.querySelector('[data-a=cancel]').onclick=()=>endEdit(k);
   tas[0].focus();
 }
@@ -180,7 +190,7 @@ const lg=document.createElement('div');lg.className='lgd';lg.innerHTML='楽譜�
 const RM=[{"L": "A", "p": 0, "x": 0.4936, "y": 0.3367, "w": 0.0282, "h": 0.0397, "m": 6}, {"L": "B", "p": 1, "x": 0.6178, "y": 0.3618, "w": 0.0287, "h": 0.0187, "m": 14}, {"L": "C", "p": 2, "x": 0.096, "y": 0.0333, "w": 0.0278, "h": 0.0184, "m": 18}, {"L": "D", "p": 3, "x": 0.0561, "y": 0.0252, "w": 0.0281, "h": 0.0189, "m": 27}, {"L": "E", "p": 3, "x": 0.3548, "y": 0.6663, "w": 0.0231, "h": 0.0161, "m": 35}, {"L": "F", "p": 4, "x": 0.0972, "y": 0.3496, "w": 0.0275, "h": 0.0202, "m": 40}, {"L": "G", "p": 5, "x": 0.6623, "y": 0.0177, "w": 0.0288, "h": 0.0189, "m": 48}, {"L": "H", "p": 5, "x": 0.0567, "y": 0.6771, "w": 0.0244, "h": 0.0165, "m": 53}, {"L": "I", "p": 6, "x": 0.1045, "y": 0.6615, "w": 0.0293, "h": 0.0194, "m": 62}, {"L": "J", "p": 7, "x": 0.0525, "y": 0.0296, "w": 0.0275, "h": 0.0189, "m": 66}, {"L": "K", "p": 8, "x": 0.6341, "y": 0.0263, "w": 0.0287, "h": 0.0197, "m": 77}];
 RM.forEach(r=>{const d=document.createElement('div');d.className='rm';d.title=r.L+'から再生';const px=r.w*0.35,py=r.h*0.35;
  d.style.cssText='left:'+(r.x-px)*100+'%;top:'+(r.y-py)*100+'%;width:'+(r.w+2*px)*100+'%;height:'+(r.h+2*py)*100+'%';
- d.onclick=e=>{e.stopPropagation();const k=AK.find(z=>z.m0==r.m);if(!k)return;au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()};pgs[r.p].appendChild(d)});
+ d.onclick=e=>{e.stopPropagation();const k=AK.find(z=>z.m0==r.m);if(!k)return;jumpT=k.t;jumpUntil=performance.now()+1800;au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()};pgs[r.p].appendChild(d)});
 const MK=AK.map(k=>({p:k.p,m:k.m,t:k.t,x:k.x,x2:k.x2,y0:k.sb[0]?k.sb[0][0]:k.sb[3][0],y1:k.sb[3][1]}));
 function pick(p,px,py){let b=null,bs=9;for(const k of MK){if(k.p!=p)continue;const dy=py<k.y0?k.y0-py:py>k.y1?py-k.y1:0,dx=px<k.x?k.x-px:px>k.x2?px-k.x2:0,s=dy*2+dx;if(s<bs){bs=s;b=k}}return bs<0.08?b:null}
 const hl=document.createElement('div');hl.style.cssText='position:absolute;background:rgba(255,152,0,.22);outline:2px solid rgba(255,152,0,.8);border-radius:4px;pointer-events:none;display:none;z-index:3';
@@ -191,7 +201,7 @@ pgs.forEach((d,i)=>{d.style.cursor='pointer';
  d.addEventListener('mouseleave',()=>{hl.style.display='none'});
  d.addEventListener('click',e=>{const k=at(e);if(!k)return;showHl(k,d);hl.style.background='rgba(255,152,0,.5)';
   setTimeout(()=>{hl.style.background='rgba(255,152,0,.22)';if(!matchMedia('(hover:hover)').matches)hl.style.display='none'},500);
-  au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()})});
+  jumpT=k.t;jumpUntil=performance.now()+1800;au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()})});
 const BASE=[83.0,84.5,84.9,85.0,88.2];let bpm=80;
 function applyRate(){const r=bpm/BASE[part];au.defaultPlaybackRate=r;au.playbackRate=r;['preservesPitch','webkitPreservesPitch','mozPreservesPitch'].forEach(p=>{try{au[p]=true}catch(e){}});$('rtv').textContent=bpm+' BPM';try{localStorage.setItem('rp_bpm',bpm)}catch(e){}}
 const setBpm=b=>{bpm=Math.max(40,Math.min(120,Math.round(b)));applyRate()};
@@ -209,6 +219,7 @@ dv.addEventListener('dblclick',()=>{appEl.style.setProperty('--lw',50);layout();
 setInterval(()=>{const ct=au.currentTime|0;$('tm').textContent=(ct/60|0)+':'+String(ct%60).padStart(2,'0')},250);
 /* ---- follow music: system-level auto scroll ---- */
 const SY=[];(()=>{const g={};AK.forEach(k=>{const id=k.p+':'+k.y;if(!g[id])g[id]={p:k.p,y:k.y,h:k.h,t:k.t,m:k.m,x0:k.x,x1:k.x2};const s=g[id];s.t=Math.min(s.t,k.t);s.m=Math.min(s.m,k.m);s.x0=Math.min(s.x0,k.x);s.x1=Math.max(s.x1,k.x2)});Object.values(g).sort((a,b)=>a.t-b.t).forEach(s=>SY.push(s))})();
+var jumpT=0,jumpUntil=0;
 let curS=-2,manualUntil=0,autoOn=true,lastCard=-1;
 const cs=document.createElement('div');cs.style.cssText='position:absolute;left:.4%;width:5px;background:#ff9800;border-radius:3px;pointer-events:none;z-index:3';
 ['wheel','touchmove'].forEach(ev=>$('sc').addEventListener(ev,()=>{manualUntil=performance.now()+4000},{passive:true}));
@@ -221,7 +232,7 @@ function swipe(el,target,dur,force){
   (function step(now){if(anim[el.id]!==t0||(!force&&manualUntil>t0))return;const p=Math.min(1,(now-t0)/dur),e=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;el.scrollTop=start+delta*e;if(p<1)requestAnimationFrame(step)})(t0);
 }
 function follow(force){
-  if(!autoOn)return;const t=toRef(part,au.currentTime)+0.2;let i=0;for(let k=0;k<SY.length;k++){if(SY[k].t<=t)i=k;else break}
+  if(!autoOn)return;let t=toRef(part,au.currentTime)+0.2;if(performance.now()<jumpUntil)t=Math.max(t,jumpT+0.01);let i=0;for(let k=0;k<SY.length;k++){if(SY[k].t<=t)i=k;else break}
   if(i==curS&&!force)return;curS=i;const s=SY[i],host=pgs[s.p];
   host.appendChild(cs);cs.style.top=(s.y-s.h/2)*100+'%';cs.style.height=s.h*100+'%';
   let pi=0;PT.forEach((p,k)=>{if(p[0]<=Math.floor(s.m))pi=k});
