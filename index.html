@@ -201,7 +201,7 @@ pgs.forEach((d,i)=>{d.style.cursor='pointer';
  d.addEventListener('mouseleave',()=>{hl.style.display='none'});
  d.addEventListener('click',e=>{const k=at(e);if(!k)return;showHl(k,d);hl.style.background='rgba(255,152,0,.5)';
   setTimeout(()=>{hl.style.background='rgba(255,152,0,.22)';if(!matchMedia('(hover:hover)').matches)hl.style.display='none'},500);
-  jumpT=k.t;jumpUntil=performance.now()+1800;au.currentTime=Math.max(0,fromRef(part,k.t)-0.2);au.play()})});
+  jumpT=k.t;jumpUntil=performance.now()+1800;au.currentTime=Math.max(0,fromRef(part,k.m<=1?0.8:k.t-0.2));au.play()})});
 const BASE=[83.0,84.5,84.9,85.0,88.2];let bpm=80;
 function applyRate(){const r=bpm/BASE[part];au.defaultPlaybackRate=r;au.playbackRate=r;['preservesPitch','webkitPreservesPitch','mozPreservesPitch'].forEach(p=>{try{au[p]=true}catch(e){}});$('rtv').textContent=bpm+' BPM';try{localStorage.setItem('rp_bpm',bpm)}catch(e){}}
 const setBpm=b=>{bpm=Math.max(40,Math.min(120,Math.round(b)));applyRate()};
